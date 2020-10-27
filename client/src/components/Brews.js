@@ -1,7 +1,9 @@
 import React, {Component} from 'react';
-import {Box, Heading, Text, Image, Card, Button} from 'gestalt';
+import {Box, Heading, Text, Image, Card, Button, Mask, IconButton} from 'gestalt';
+import {Link} from 'react-router-dom';
 import Strapi from 'strapi-sdk-javascript/build/main';
 import Loader from './Loader';
+import {calculatePriceToString, setCart, getCart} from '../utils';
 
 const apiUrl = process.env.API_URL || 'http://localhost:1337'
 const strapi = new Strapi(apiUrl);
@@ -11,6 +13,7 @@ class Brews extends Component {
     brews: [],
     brand: '',
     brewsLoading: true,
+    cartItems: [],
   }
 
   async componentDidMount() {
@@ -34,15 +37,40 @@ class Brews extends Component {
         }
       })
       console.log('[Brews] response: ', response)
-      this.setState({brews: response.data.brand.brews, brand: response.data.brand.name, brewsLoading: false})
+      this.setState({
+        brews: response.data.brand.brews,
+        brand: response.data.brand.name, brewsLoading: false,
+        cartItems: getCart(),
+      })
     } catch(err) {
       console.error(err);
       this.setState({brewsLoading: false})
     }
   }
+
+  addToCart = brew => {
+    const alreadyInCart = this.state.cartItems.findIndex((item) => item._id === brew._id);
+    let updatedItems = [...this.state.cartItems];
+
+    if (alreadyInCart === -1) {
+      updatedItems = updatedItems.concat({
+        ...brew,
+        quantity: 1,
+      })
+    } else {
+      updatedItems[alreadyInCart].quantity += 1;
+    }
+
+    this.setState({cartItems: updatedItems}, () => setCart(updatedItems));
+  }
+
+  deleteItemFromCart = id => {
+    const filteredItems = this.state.cartItems.filter((item) => item._id !== id);
+    this.setState({cartItems: filteredItems}, () => setCart(filteredItems))
+  }
   
   render() {
-    const {brand, brews} = this.state;
+    const {brand, brews, cartItems} = this.state;
 
     return (
     <Box
@@ -50,6 +78,11 @@ class Brews extends Component {
       display="flex"
       justifyContent="center"
       alignItems="start"
+      dangerouslySetInlineStyle={{
+        __style: {
+          flexWrap: 'wrap-reverse'
+        }
+      }}
     >
       {/* Brews Section */}
       <Box display="flex" direction="column" alignItems="center">
@@ -94,7 +127,7 @@ class Brews extends Component {
                   <Text color="orchid">{`$${brew.price}`}</Text>
                   <Box marginTop={2}>
                     <Text size="xl">
-                      <Button color="blue" text="Add to Cart" />
+                      <Button color="blue" text="Add to Cart" onClick={() => this.addToCart(brew)}/>
                     </Text>
                   </Box>
                 </Box>
@@ -102,6 +135,46 @@ class Brews extends Component {
             </Box>
           ))}
         </Box>
+      </Box>
+      <Box marginTop={2} marginLeft={8} alignSelf="end">
+        <Mask shape="rounded" wash>
+          <Box display="flex" direction="column" alignItems="center" padding={2}>
+            {/* User card heading */}
+            <Heading align="center" size="sm">Your Cart</Heading>
+            <Text color="gray" italic>
+              {cartItems.length} items selected
+            </Text>
+
+              {/* Cart Items */}
+
+              {cartItems.map((item) => (
+                <Box key={item._id} display="flex" alignItems="center">
+                  <Text>
+                    {item.name} x {item.quantity} - {(+item.quantity * +item.price).toFixed(2)}
+                  </Text>
+                  <IconButton
+                    accessibilityLabel="Delete Item Button"
+                    icon="cancel"
+                    size="sm"
+                    iconColor="red"
+                    onClick={() => this.deleteItemFromCart(item._id)}
+                  />
+                </Box>
+              ))}
+
+              <Box display="flex" alignItems="center" justifyContent="center" direction="column">
+                <Box margin={2}>
+                  {cartItems.length === 0 && (
+                    <Text color="red">Please select some items</Text>
+                  )}
+                </Box>
+                <Text size="lg">Total: {calculatePriceToString(cartItems)}</Text>
+                <Text>
+                  <Link to="/checkout">checkout</Link>
+                </Text>
+              </Box>
+          </Box>
+        </Mask>
       </Box>
     </Box>
     )
