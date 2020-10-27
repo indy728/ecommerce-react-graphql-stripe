@@ -72,9 +72,10 @@ class App extends Component {
             onChange={this.handleChange}
             value={searchTerm}
             placeholder="Search Brands"
-          />
+            />
           <Box margin={2}>
             <Icon
+              accessibilityLabel="Brands Search Filter Icon"
               icon="filter"  size={20} 
               color={
                 searchTerm ? "orange" : 'gray'
@@ -125,7 +126,7 @@ class App extends Component {
                   <Text size="xl">{brand.name}</Text>
                   <Text>{brand.description}</Text>
                   <Text size="xl">
-                    <Link to={`/${brand._id}`}>
+                    <Link to={`/${brand._id}/brews`}>
                       See Brews
                     </Link>
                   </Text>
