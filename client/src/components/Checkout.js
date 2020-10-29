@@ -1,13 +1,15 @@
 import React, {Component} from 'react';
+import {withRouter} from 'react-router-dom';
 import { Container, Box, Heading, Text, TextField, Modal, Button, Spinner } from 'gestalt';
 import ToastMessage from './ToastMessage';
 import Strapi from 'strapi-sdk-javascript/build/main';
-import {calculatePriceToString, getCart, setToken} from '../utils';
+import {calculatePriceToString, getCart, clearCart, calculatePriceToNumber} from '../utils';
+import {Elements, StripeProvider, CardElement, injectStripe} from 'react-stripe-elements';
 
 const apiUrl = process.env.API_URL || 'http://localhost:1337'
 const strapi = new Strapi(apiUrl);
 
-class Checkout extends Component {
+class _CheckoutForm extends Component {
   state = {
     address: '',
     postalCode: '',
@@ -16,7 +18,7 @@ class Checkout extends Component {
     toast: false,
     toastMessage: '',
     cartItems: [],
-    orderProcessing: true,
+    orderProcessing: false,
     modal: false,
   }
 
@@ -32,7 +34,6 @@ class Checkout extends Component {
 
   handleConfirmOrder = async event => {
     event.preventDefault();
-    const {username, email, password} = this.state;
     if (this.isFormEmpty()) {
       this.showToast('Fill in all the fields');
       return
@@ -43,17 +44,59 @@ class Checkout extends Component {
     })
   }
 
-  handleSubmitOrder = () => {};
+  handleSubmitOrder = async () => {
+    const {cartItems, city, address, postalCode, confirmationEmailAddress } = this.state;
+
+    const amount = calculatePriceToNumber(cartItems);
+
+    this.setState({ orderProcessing: true });
+    let token;
+    try {
+      // create stripe token
+      const response = await this.props.stripe.createToken();
+      token = response.token.id;
+      // create order in db with strapi sdk
+      await strapi.createEntry('orders', {
+        amount,
+        brews: cartItems,
+        city,
+        postalCode,
+        address,
+        token,
+        confirmationEmailAddress
+      })
+      // set orderProcessing to false
+      // hide modal
+      this.setState({
+        orderProcessing: false, modal: false,
+      })
+      // clear user cart
+      clearCart();
+      // show success toast
+      this.showToast(`Your order has been successfully submitted!`, true)
+    } catch (err) {
+      // set orderProcessing & modal to false
+      this.setState({
+        orderProcessing: false, modal: false,
+      })
+      // show error toast
+      console.error('[Checkout] err: ', JSON.stringify(err))
+      console.log('[Checkout] error.code: ', err.code)
+      this.showToast(err.message);
+    }
+  };
 
   closeModal = () => this.setState({modal: false});
 
-  showToast = toastMessage => {
+  showToast = (toastMessage, redirect = false) => {
     this.setState({
       toast: true, toastMessage
     })
     setTimeout(() => this.setState({
       toast: false, toastMessage: ''
-    }), 5000);
+    }, 
+      () => redirect && this.props.history.push('/')
+    ), 5000);
   }
 
   isFormEmpty = () => {
@@ -128,7 +171,7 @@ class Checkout extends Component {
                   {/* Postal Code Input */}
                   <TextField
                     id="postalCode"
-                    type="number"
+                    type="text"
                     name="postalCode"
                     placeholder="Postal Code"
                     onChange={this.handleChange}
@@ -148,6 +191,11 @@ class Checkout extends Component {
                     name="confirmationEmailAddress"
                     placeholder="Confirmation Email Address"
                     onChange={this.handleChange}
+                  />
+                  {/* Credit Card Element */}
+                  <CardElement
+                    id="stripe__input"
+                    onReady={input => input.focus()}
                   />
                   <button id="stripe__button" type="submit">Submit</button>
                 </form>
@@ -185,6 +233,7 @@ class Checkout extends Component {
 
 const ConfirmationModal = ({orderProcessing, cartItems, closeModal, handleSubmitOrder}) => (
   <Modal
+    accessibilityCloseLabel="Close Modal"
     accessibilityModalLabel="Confirm Your Order"
     heading="Confirm Your Order"
     onDismiss={closeModal}
@@ -250,6 +299,18 @@ const ConfirmationModal = ({orderProcessing, cartItems, closeModal, handleSubmit
       <Text align="center" italic>Submitting order...</Text>
     )}
   </Modal>
+)
+
+const CheckoutForm = withRouter(injectStripe(_CheckoutForm));
+
+const Checkout = () => (
+  <StripeProvider
+    apiKey="pk_test_51HhN6UKsQ6mJ0T5x8FKyZqFOCaqbwqKsm8Ljrmlf4pjds5o4WLDSGvDV5U2rnN9qi5FODPIfMOpHkBGniyGyFUwU00uFarqjRY"
+  >
+    <Elements>
+      <CheckoutForm />
+    </Elements>
+  </StripeProvider>
 )
 
 export default Checkout;

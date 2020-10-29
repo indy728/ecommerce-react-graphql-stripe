@@ -30,7 +30,7 @@ const AuthNav = ({handleSignout}) => (
    >
      <NavLink to="/checkout" activeClassName="active">
       <Text
-        size="x1" color="white"
+        size="xl" color="white"
       >
         Checkout
        </Text>
