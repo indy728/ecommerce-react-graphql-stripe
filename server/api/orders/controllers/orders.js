@@ -10,7 +10,6 @@ module.exports = {
   async create(ctx) {
     const {address, amount, brews, postalCode, token, city, confirmationEmailAddress} = ctx.request.body
 
-
     try {
       const charge = await stripe.charges.create({
         amount: amount * 100,
@@ -29,9 +28,18 @@ module.exports = {
       confirmationEmailAddress
     })
 
+    await strapi.plugins['email'].services.email.send({
+      to: confirmationEmailAddress,
+      from: 'BrewHaha@strapi.io',
+      subject: 'Your BrewHaha Orer',
+      text: `
+        This is a test
+      `,
+    });
+
     return order;
     } catch (err) {
-      console.log('[orders] err: ', err)
+      err.response.body.errors.forEach(error => console.log('[orders] error: ', error))
     }
 
   }

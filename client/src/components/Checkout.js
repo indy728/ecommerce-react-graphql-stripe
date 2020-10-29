@@ -56,7 +56,7 @@ class _CheckoutForm extends Component {
       const response = await this.props.stripe.createToken();
       token = response.token.id;
       // create order in db with strapi sdk
-      await strapi.createEntry('orders', {
+      const order = await strapi.createEntry('orders', {
         amount,
         brews: cartItems,
         city,
